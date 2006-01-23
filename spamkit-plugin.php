@@ -3,7 +3,7 @@
 Plugin Name: SpamKit Plugin
 Plugin URI: http://blog.lobstertechnology.com/category/wordpress/plugins/
 Description: Prototype, uses <a href='http://webofshite.com/?p=3'>Time-Based-Tokens</a> in the comment form [by <a href='http://webofshite.com/'>Gerard Calderhead</a>]. If Wordpress recieves a comment-post without the token, or with an invalid token the comment is held for moderation. In this version, there are no option pages or any visual aspects to this plugin.
-Version: 0.0
+Version: 0.1
 Author: Michael Cutler
 Author URI: http://blog.lobstertechnology.com/
 Update: http://blog.lobstertechnology.com/category/wordpress/plugins/
@@ -66,6 +66,14 @@ Update: http://blog.lobstertechnology.com/category/wordpress/plugins/
     * @return "spam" if SpamKit finds the TimeToken invalid, otherwise $approved is returned unchanged
     */
    function spam_action_pre_comment_approved( $approved ) {
+   	  // comment is most likely a trackback from my own blog / server
+   	  // this could be abused if another web application on the server
+   	  // is exploited allowing an attacker to post comments apparently
+   	  // from this server
+   	  //
+   	  // skips time-based token checking
+   	  if ( $_SERVER['REMOTE_ADDR'] == $_SERVER['SERVER_ADDR'] )
+   	  	return $approved; 	  
       // fail immediately if the token is invalid
       if ( spamkit_checkTimeTokenValid( $_POST["token"] ) == FALSE )
          return "spam";
