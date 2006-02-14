@@ -3,7 +3,7 @@
 Plugin Name: SpamKit Plugin
 Plugin URI: http://blog.lobstertechnology.com/category/wordpress/plugins/
 Description: Prototype, uses <a href='http://webofshite.com/?p=3'>Time-Based-Tokens</a> in the comment form [by <a href='http://webofshite.com/'>Gerard Calderhead</a>]. If Wordpress recieves a comment-post without the token, or with an invalid token the comment is held for moderation. In this version, there are no option pages or any visual aspects to this plugin.
-Version: 0.1
+Version: 0.2
 Author: Michael Cutler
 Author URI: http://blog.lobstertechnology.com/
 Update: http://blog.lobstertechnology.com/category/wordpress/plugins/
@@ -121,174 +121,206 @@ Update: http://blog.lobstertechnology.com/category/wordpress/plugins/
 ?>
 <?php
 /* spamkit-token.php :: top */ 
-/* SpamKit - Time Tokens (www.webofshite.com)
- * Part of Gerrys PHP Spam Kit for GuestBooks and Forums.
- * http://webofshite.com/downloads/blogspam/examples/example1.php
- * 
- * (c) 2005 Gerard Calderhead (Gerry@EverythingSucks.co.uk)
- *
- * You may distribute under any terms and any license of
- * your choosing providing you credit the author for his work.
- *
- * USEAGE:
- *
- * At an appropriate point in your PHP code do the following
- *
- *     define(SPAMKIT_TOKEN_CRYPT_KEY,"password");
- *     define(SPAMKIT_TOKEN_CRYPT_METHOD, MCRYPT_DES );
- *
- * Remebering to change your password and choosing a crypto method
- * appropriate to your needs ( DES should be fine generally ).
- * 
- * NOTE: DES keys demand a CRYPT_KEY of 8 characters, no more no less
- *
- * Thats all the explaining you should need, see inline documentation.
- */
-   
-   $__spamkit_last_token = "";
-   $__spamkit_last_stamp = 0;
-   $__spamkit_last_crc   = 0;
-   
-   /**
-   * Generate a Time Token which can be used to control access to a specific
-   * area of functionality etc.
-   * @param $offset is an offset in seconds (+ve or -ve) for the token you generate. [Optional]
-   * @return string token value used to limit access to a given time.
-   */
-   function spamkit_getTimeToken( $offset = 0 )
-   {
-   global $__spamkit_last_token;
-   global $__spamkit_last_stamp;
-   global $__spamkit_last_crc;
-   $__spamkit_last_stamp = time( ) + $offset;
-   $t          = dechex( $__spamkit_last_stamp );
-   $__spamkit_last_crc   = crc32($t);
-   $c          = dechex( $__spamkit_last_crc );
-   $__spamkit_last_token = urlencode(base64_encode(__spamkit_tok_do_encrypt( $t . "." . $c )));
-   return $__spamkit_last_token;
-   }
-   
-   
-   /**
-   *  Checks to see if the supplied Time Token is of the correct format and that its
-   *  internal checksum computes to the expected value.
-   *  @param $token is the token you want to validate
-   *  @return boolean the result of the validation
-   */
-   function spamkit_checkTimeTokenValid( $token )
-   {
-     global $__spamkit_last_stamp;
-     global $__spamkit_last_crc;
-     __spamkit_tok_parse( $token );
-     if ( crc32( dechex($__spamkit_last_stamp)) !=$__spamkit_last_crc ) return FALSE;
-     return TRUE;
-   }
-   
-   /**
-   * Check whether a Time Token is older than the given number of seconds.
-   * @param $token the Time Token whose age you wish to check
-   * @param $tmo_secs the Time Out (seconds) you want to check the token against.
-   * @return boolean result indicating if the token has timed out.
-   */
-   function spamkit_checkTimeTokenTimeout( $token, $tmo_secs )
-   {
-     global $__spamkit_last_stamp;
-     __spamkit_tok_parse( $token );
-     return (($__spamkit_last_stamp + intval($tmo_secs) <= time() )===TRUE);
-   }
-   
-   /**
-   * Read the unix timestamp out of the supplied token.
-   * @param $token is a TBT value supplied as a string.
-   * @return int of unix timestamp from token
-   */
-   function spamkit_getTimeTokenStamp( $token )
-   {
-     global $__spamkit_last_stamp;
-     __spamkit_tok_parse( $token );
-     return $__spamkit_last_stamp;
-   }
-   
-   /**
-   * Read the security hash from the supplied token
-   * @param $token is TBT value supplied as a string.
-   * @return string with the Hash/Security variable from token.
-   */
-   function spamkit_getTimeTokenHash( $token )
-   {
-     global $__spamkit_last_crc;
-     __spamkit_tok_parse( $token );
-     return $__spamkit_last_crc;
-   }
-   
-   
-   
-   /*********************
-   * Private Functions *
-   *********************/
-   
-   
-   /**
-   * Encrypt the given piece of data
-   * @param $data is the item to be encrypted
-   * @retun string containing the encrypted dats
-   */
-   function __spamkit_tok_do_encrypt( $data )
-   {
-     return mcrypt_encrypt(SPAMKIT_TOKEN_CRYPT_METHOD, SPAMKIT_TOKEN_CRYPT_KEY, $data, MCRYPT_MODE_CBC, __spamkit_tok_get_iv() );
-   }
-   
-   
-   /**
-   * Decrypt the given piece of data.
-   * @param $data is the item to be decrypted
-   * @return string containing the decrypted data
-   */
-   function __spamkit_tok_do_decrypt( $data )
-   {
-     return mcrypt_decrypt(SPAMKIT_TOKEN_CRYPT_METHOD, SPAMKIT_TOKEN_CRYPT_KEY, $data, MCRYPT_MODE_CBC, __spamkit_tok_get_iv() );
-   }
-   
-   
-   /**
-   * Generate an initialisation vector for the crypto engine we're using,
-   * we don't care too much about this so just replicate parts of the password
-   * for use here to keep the config simple.
-   *
-   * @return string value used to initialise crypto engines.
-   */
-   function __spamkit_tok_get_iv( ) {
-     $iv_size = mcrypt_get_iv_size(SPAMKIT_TOKEN_CRYPT_METHOD, MCRYPT_MODE_ECB);
-     $iv = "";
-     $x  = 0;
-     $y  = 0;
-     $e  = SPAMKIT_TOKEN_CRYPT_KEY;
-     $l  = strlen( $e );
-     for ( $x=0; $x<$iv_size; $x++ ) {
-       $iv = $iv . $e[$y];
-       $y = ($y+1) % $l;
-     }
-     return $iv;
-   }
-   
-   
-   /**
-   *  Decrypt and parse out a TBT value into it's component parts and update
-   *  out local globals with the values.  This makes the accessor methods for
-   *  the TBTs a little faster as we're not constantly decrypting and parsing em.
-   *  @param $token is the TBT value to decrypt and parse out.
-   */
-   function __spamkit_tok_parse( $token ) {
-     global $__spamkit_last_token;
-     global $__spamkit_last_stamp;
-     global $__spamkit_last_crc;
-     if ( strcmp( $token, $__spamkit_last_token) == 0 ) return;
-     $__spamkit_last_token = $token;
-     $data = __spamkit_tok_do_decrypt( base64_decode(urldecode($token)) );
-     $data = split( "\.", $data );
-     $__spamkit_last_stamp = intval( hexdec( $data[0] ));
-     $__spamkit_last_crc   = intval(hexdec( $data[1] ));
-   }
+/* SpamKit - Time Tokens
+* Part of Gerry's PHP Spam Kit for GuestBooks and Forums.
+* By Gerard Calderhead (Gerry@EverythingSucks.co.uk)
+*  
+* You may distribute under any terms and any license of
+* your choosing providing you credit the author for his work.
+*
+* INFORMATION:
+* For updates and to read the few blog articles I actually post
+* about this stuff visit
+*
+*           http://webofshite.com/?cat=4
+*
+* USEAGE:
+*
+* At an appropriate point in your PHP code do the following
+*
+*     define(SPAMKIT_TOKEN_CRYPT_KEY,"password");
+*     define(SPAMKIT_TOKEN_CRYPT_METHOD, MCRYPT_DES );
+*
+* Remebering to change your password and choosing a crypto method
+* appropriate to your needs ( DES should be fine generally ).
+*
+* That's all the explaining you should need, see inline documentation.
+*
+* CHANGE LOG:
+* -----------
+* 2006-02-05     Gerry    Added source IP to TBT to stop "zombie nets" getting
+*                      through.  Some weird tricks are afoot.  Michael spotted
+*             these this week, expect a blog entry soon with some
+*            analysis at http://blog.lobstertechnology.com
+*
+*/
+
+$__spamkit_last_token = "";
+$__spamkit_last_stamp = 0;
+$__spamkit_last_ip    = "";
+$__spamkit_last_crc   = 0;
+
+/**
+* Generate a Time Token which can be used to control access to a specific
+* area of functionality etc.
+* @param $offset is an offset in seconds (+ve or -ve) for the token you generate. [Optional]
+* @return string token value used to limit access to a given time.
+*/
+function spamkit_getTimeToken( $offset = 0 )
+{
+global $__spamkit_last_token;
+global $__spamkit_last_stamp;
+global $__spamkit_last_crc;
+global $__spamkit_last_ip;
+$__spamkit_last_stamp = time( ) + $offset;
+$t          = dechex( $__spamkit_last_stamp );
+$__spamkit_last_ip    = $_SERVER['REMOTE_ADDR'];
+$__spamkit_last_crc   = crc32($t . $__spamkit_last_ip );
+$c          = dechex( $__spamkit_last_crc );
+$__spamkit_last_token = urlencode(base64_encode(__spamkit_tok_do_encrypt( $t . "|" . $__spamkit_last_ip . "|" . $c )));
+return $__spamkit_last_token;
+}
+
+
+/**
+*  Checks to see if the supplied Time Token is of the correct format and that its
+*  internal checksum computes to the expected value.
+*  @param $token is the token you want to validate
+*  @return boolean the result of the validation
+*/
+function spamkit_checkTimeTokenValid( $token )
+{
+  global $__spamkit_last_stamp;
+  global $__spamkit_last_crc;
+  global $__spamkit_last_ip;
+  __spamkit_tok_parse( $token );
+  if ( crc32( dechex($__spamkit_last_stamp ) . $__spamkit_last_ip) !=$__spamkit_last_crc ) return FALSE;
+  if ( strcmp( $__spamkit_last_ip, $_SERVER["REMOTE_ADDR"] ) ) return FALSE;
+  return TRUE;
+}
+
+/**
+* Check whether a Time Token is older than the given number of seconds.
+* @param $token the Time Token whose age you wish to check
+* @param $tmo_secs the Time Out (seconds) you want to check the token against.
+* @return boolean result indicating if the token has timed out.
+*/
+function spamkit_checkTimeTokenTimeout( $token, $tmo_secs )
+{
+  global $__spamkit_last_stamp;
+  __spamkit_tok_parse( $token );
+  return (($__spamkit_last_stamp + intval($tmo_secs) <= time() )===TRUE);  
+}
+
+/**
+* Read the unix timestamp out of the supplied token.
+* @param $token is a TBT value supplied as a string.
+* @return int of unix timestamp from token
+*/
+function spamkit_getTimeTokenStamp( $token )
+{
+  global $__spamkit_last_stamp;
+  __spamkit_tok_parse( $token );
+  return $__spamkit_last_stamp;
+}
+
+/**
+* Read the security hash from the supplied token
+* @param $token is TBT value supplied as a string.
+* @return string with the Hash/Security variable from token.
+*/
+function spamkit_getTimeTokenHash( $token )
+{
+  global $__spamkit_last_crc;
+  __spamkit_tok_parse( $token );
+  return $__spamkit_last_crc;
+}
+
+/**
+* IP of the request is now part of the token to get around
+* what seems to be distributed attacks.   Will add a link to
+* Michael's blog if he ever writes up an article about this.
+* @param $token is TBT value supplied as a string.
+* @return string with the IP address of the original request
+*
+*/
+function spamkit_getTimeTokenIP( $token)
+{
+  global $__spamkit_last_ip;
+  __spamkit_tok_parse( $token );
+  return $__spamkit_last_ip;
+}
+
+
+
+/*********************
+* Private Functions *
+*********************/
+
+
+/**
+* Encrypt the given piece of data
+* @param $data is the item to be encrypted
+* @retun string containing the encrypted dats
+*/
+function __spamkit_tok_do_encrypt( $data )
+{
+  return mcrypt_encrypt(SPAMKIT_TOKEN_CRYPT_METHOD, SPAMKIT_TOKEN_CRYPT_KEY, $data, MCRYPT_MODE_CBC, __spamkit_tok_get_iv() );
+}
+
+
+/**
+* Decrypt the given piece of data.
+* @param $data is the item to be decrypted
+* @return string containing the decrypted data
+*/
+function __spamkit_tok_do_decrypt( $data )
+{
+  return mcrypt_decrypt(SPAMKIT_TOKEN_CRYPT_METHOD, SPAMKIT_TOKEN_CRYPT_KEY, $data, MCRYPT_MODE_CBC, __spamkit_tok_get_iv() );
+}
+
+
+/**
+* Generate an initialisation vector for the crypto engine we're using,
+* we don't care too much about this so just replicate parts of the password
+* for use here to keep the config simple.
+*
+* @return string value used to initialise crypto engines.
+*/
+function __spamkit_tok_get_iv( ) {
+  $iv_size = mcrypt_get_iv_size(SPAMKIT_TOKEN_CRYPT_METHOD, MCRYPT_MODE_ECB);
+  $iv = "";
+  $x  = 0;
+  $y  = 0;
+  $e  = SPAMKIT_TOKEN_CRYPT_KEY;
+  $l  = strlen( $e );
+  for ( $x=0; $x<$iv_size; $x++ ) {
+    $iv = $iv . $e[$y];
+    $y = ($y+1) % $l;
+  }
+  return $iv;
+}
+
+
+/**
+*  Decrypt and parse out a TBT value into it's component parts and update
+*  out local globals with the values.  This makes the accessor methods for
+*  the TBTs a little faster as we're not constantly decrypting and parsing em.
+*  @param $token is the TBT value to decrypt and parse out.
+*/
+function __spamkit_tok_parse( $token ) {
+  global $__spamkit_last_token;
+  global $__spamkit_last_stamp;
+  global $__spamkit_last_crc;
+  global $__spamkit_last_ip;
+  if ( strcmp( $token, $__spamkit_last_token) == 0 ) return;
+  $__spamkit_last_token = $token;
+  $data = __spamkit_tok_do_decrypt( base64_decode(urldecode($token)) );
+  $data = split( "\|", $data );
+  $__spamkit_last_stamp = intval( hexdec( $data[0] ));
+  $__spamkit_last_ip    = $data[1];
+  $__spamkit_last_crc   = intval(hexdec( $data[2] ));
+}
 
 /* spamkit-token.php :: bottom */ 
 ?>
