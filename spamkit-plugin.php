@@ -568,20 +568,7 @@ if( ! defined("spamkit-badge.php") ) {
       imagestring($im, $font, 4, 3, "SPAMKIT", $textcolor2);
       // Draw info text
       imagestring($im, $font, 43, 3, $count, $textcolor);
-      
-      // Draw meter bar
-      if ( $loadav ) {
-         $limit = 20;   //this is the upper limit of the range of server load values... adjust to your server
-         $percent = ($loadav * 100) /$limit;
-         $meterwidth = ($percent / 100) * 28;
-         if ($meterwidth > $limit)
-          $meterwidth = $limit;
-         imagefilledrectangle ( $im, 48, 4, 48 + $meterwidth, $height-6, $metercolor );
-         imagerectangle ( $im, 48, 4, 76, $height-6, $bordercolor2 );
-      } else {
-         
-      }
-      
+     
       
       // Set headers
       header("Expires: " . gmdate("D, d M Y H:i:s", $now + 60 ) . " GMT"); // expires in 1 minute
